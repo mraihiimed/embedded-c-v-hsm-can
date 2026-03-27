@@ -1,93 +1,77 @@
+# ---------------------------------------------------------------------------
+# Compiler settings
+# ---------------------------------------------------------------------------
 CC      = gcc
 CFLAGS  = -Wall -Wextra -O2 -Iinclude -MMD -MP
 LDFLAGS = 
 
 # ---------------------------------------------------------------------------
-# Common source files shared by all ECUs
+# Directory structure
 # ---------------------------------------------------------------------------
-SRC_COMMON = \
-    src/bus.c \
-    src/network.c \
-    src/hsm.c \
-    src/ecu.c \
-    src/ids.c \
-    src/util.c \
-    src/protected_memory.c
+CORE_DIR     = src/core
+ECU_DIR      = src/ecu
+BUILD_DIR    = src/build
+BIN_DIR      = build/bin
 
-OBJ_COMMON = $(SRC_COMMON:.c=.o)
+# Ensure directories exist
+$(shell mkdir -p $(BUILD_DIR) $(BIN_DIR))
 
 # ---------------------------------------------------------------------------
-# ECU binaries
+# Source files
 # ---------------------------------------------------------------------------
-ECU_BINS = \
-    bus_server \
-    monitor \
-    wheel_fl \
-    wheel_fr \
-    wheel_rl \
-    wheel_rr \
-    steering_sensor \
-    steering_controller \
-    brake_controller \
-    autonomous_controller \
-    engine_ecu \
+CORE_SRC = $(wildcard $(CORE_DIR)/*.c)
+ECU_SRC  = $(wildcard $(ECU_DIR)/main_*.c)
 
+CORE_OBJ = $(CORE_SRC:$(CORE_DIR)/%.c=$(BUILD_DIR)/%.o)
+ECU_OBJ  = $(ECU_SRC:$(ECU_DIR)/%.c=$(BUILD_DIR)/%.o)
 
 # ---------------------------------------------------------------------------
-# Build rules
+# ECU binary names (derived automatically)
 # ---------------------------------------------------------------------------
-all: $(ECU_BINS)
+ECU_BINS = $(ECU_SRC:$(ECU_DIR)/main_%.c=%)
 
-bus_server: $(OBJ_COMMON) src/main_bus_server.o
+# Final binary paths
+ECU_BIN_PATHS = $(addprefix $(BIN_DIR)/,$(ECU_BINS))
+
+# ---------------------------------------------------------------------------
+# Default target
+# ---------------------------------------------------------------------------
+all: $(ECU_BIN_PATHS)
+
+# ---------------------------------------------------------------------------
+# Build rule for each ECU binary
+# ---------------------------------------------------------------------------
+$(BIN_DIR)/%: $(CORE_OBJ) $(BUILD_DIR)/main_%.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-monitor: $(OBJ_COMMON) src/main_monitor.o
+# Special rule for monitor (needs ncurses)
+$(BIN_DIR)/monitor: $(CORE_OBJ) $(BUILD_DIR)/main_monitor.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lncurses
 
-wheel_fl: $(OBJ_COMMON) src/main_wheel_fl.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-wheel_fr: $(OBJ_COMMON) src/main_wheel_fr.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-wheel_rl: $(OBJ_COMMON) src/main_wheel_rl.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-wheel_rr: $(OBJ_COMMON) src/main_wheel_rr.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-steering_sensor: $(OBJ_COMMON) src/main_steering_sensor.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-steering_controller: $(OBJ_COMMON) src/main_steering_controller.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-brake_controller: $(OBJ_COMMON) src/main_brake_controller.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-autonomous_controller: $(OBJ_COMMON) src/main_autonomous_controller.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-engine_ecu: $(OBJ_COMMON) src/main_engine_ecu.o
+# Generic rule for all other ECUs
+$(BIN_DIR)/%: $(CORE_OBJ) $(BUILD_DIR)/main_%.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 # ---------------------------------------------------------------------------
-# Generic compilation rule for src/*.c
+# Generic compilation rule for all .c → .o
 # ---------------------------------------------------------------------------
-src/%.o: src/%.c
+$(BUILD_DIR)/%.o: $(CORE_DIR)/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(ECU_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # ---------------------------------------------------------------------------
 # Include auto-generated dependency files
 # ---------------------------------------------------------------------------
--include $(OBJ_COMMON:.o=.d)
--include $(wildcard src/*.d)
+-include $(BUILD_DIR)/*.d
 
 # ---------------------------------------------------------------------------
 # Cleanup
 # ---------------------------------------------------------------------------
 clean:
-	rm -f src/*.o src/*.d $(OBJ_COMMON) $(OBJ_COMMON:.o=.d) $(ECU_BINS)
+	rm -f $(BUILD_DIR)/*.o $(BUILD_DIR)/*.d
+	rm -f $(BIN_DIR)/*
+	rm -rf $(BIN_DIR)
 
 .PHONY: all clean
-
