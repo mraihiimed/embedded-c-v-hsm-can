@@ -19,7 +19,7 @@ int main(void) {
     nodelay(stdscr, TRUE);  // getch() non-blocking
     keypad(stdscr, TRUE);   // Enable function keys
 
-    int sock = net_connect_to_bus(CAN_IP,     CAN_PORT_BUS_SERVER);
+    int sock = net_connect_to_bus(CAN_IP,CAN_PORT_BUS_SERVER);
     if (sock < 0) {
     endwin();
     printf("[ERROR] Monitor failed to connect to bus  server\n");
@@ -38,9 +38,7 @@ int main(void) {
 
     int rows, cols;
     getmaxyx(stdscr, rows, cols);
-    
-    fcntl(sock, F_SETFL, O_NONBLOCK);
-    
+    fcntl(sock, F_SETFL, O_NONBLOCK); 
     can_frame_t wheel_fl = {0};
     can_frame_t wheel_fr = {0};
     can_frame_t wheel_rl = {0};
@@ -56,8 +54,6 @@ int main(void) {
     int attack_detected = 0; // later: set from real IDS state
 
     while (running) {
-    
-    
     can_frame_t frame;
     int n = recv(sock, &frame, sizeof(frame), 0);
 
@@ -112,7 +108,7 @@ else if(n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
         int y = 5;
         attron(COLOR_PAIR(2));
         mvprintw(y++, 0, "SENSORS (Sending):");
-        
+
         attron(COLOR_PAIR(2));
         mvprintw(y++, 0, "SENSORS (Sending):");
 
