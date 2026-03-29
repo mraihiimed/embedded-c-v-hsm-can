@@ -45,6 +45,37 @@ bool hsm_init(hsm_context_t *ctx, const char *ecu_name) {
     return true;
 }
 
+
+
+bool hsm_verify_mac(hsm_context_t *ctx, const can_frame_t *frame)
+{
+    if (!ctx || !frame) return false;
+
+    uint8_t buf[4 + 1 + 8];
+    size_t len = 0;
+
+    buf[len++] = (frame->id >> 24) & 0xFF;
+    buf[len++] = (frame->id >> 16) & 0xFF;
+    buf[len++] = (frame->id >> 8)  & 0xFF;
+    buf[len++] = (frame->id)       & 0xFF;
+    buf[len++] = frame->dlc;
+
+    for (uint8_t i = 0; i < frame->dlc && i < 8; i++) {
+        buf[len++] = frame->data[i];
+    }
+
+    uint8_t mac_calc[32];
+    hmac_sha256_dummy(ctx->keys.comm_key, HSM_KEY_SIZE, buf, len, mac_calc);
+
+    if (memcmp(mac_calc, frame->mac, 32) != 0) {
+        log_msg(LOG_WARN, "[HSM] MAC mismatch\n");
+        return false;
+    }
+
+    return true;
+}
+
+
 bool hsm_protect_frame(hsm_context_t *ctx, can_frame_t *frame) {
     if (!ctx || !frame) return false;
 

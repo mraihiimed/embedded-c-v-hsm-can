@@ -14,7 +14,7 @@ int main(void) {
 
     while (!ecu.fail_safe) {
         can_frame_t frame = {0};
-        frame.id = 0x101;      // FR ID
+        frame.id = CAN_ID_WHEEL_FR;      // FR ID
         frame.dlc = 1;
         frame.data[0] = speed;
         frame.secured = true;
@@ -24,6 +24,6 @@ int main(void) {
         speed = (speed + 2) % 200;
         usleep(100000);
     }
-
-    return 0;
+   log_msg(LOG_ERROR, "[WHEEL_FR], FAIL-SAFE ACTIVE\n");
+   return 0;
 }

@@ -1,6 +1,7 @@
 #include "ecu.h"
 #include "config.h"
 #include <unistd.h>
+#include "main_security_checks.h"
 
 int main(void) {
     ecu_t ecu;
@@ -14,6 +15,15 @@ int main(void) {
         can_frame_t frame;
         if (!ecu_recv(&ecu, &frame)) break;
 
+	// --- SECURITY CHECK (single call) ---
+        security_status_t sec = security_check_frame(&ecu.hsm, &frame, "steering_controller");
+        // security_status_t sec = security_check_frame(&frame, "steering_controller");
+        if (sec != SEC_OK) {
+            ecu.fail_safe = true;
+            security_failsafe("steering_controller");
+            break;
+        }
+        // ------------------------------------
         if (frame.id == 0x300 && frame.dlc >= 1) {
             int8_t angle = (int8_t)frame.data[0];
             log_msg(LOG_INFO, "[STEER_CTRL] Steering angle command = %d°\n", angle);

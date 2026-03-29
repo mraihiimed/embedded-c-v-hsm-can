@@ -4,6 +4,46 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <stdio.h>
+
+// Global socket used by all ECUs
+static int g_bus_sock = -1;
+
+
+int network_init(void)
+{
+    g_bus_sock = net_connect_to_bus(BUS_SERVER_HOST, BUS_SERVER_PORT);
+    if (g_bus_sock < 0) {
+        printf("[NETWORK] ERROR: Could not connect to bus server %s:%d\n",
+               BUS_SERVER_HOST, BUS_SERVER_PORT);
+        return -1;
+    }
+
+    printf("[NETWORK] Connected to bus server at %s:%d\n",
+           BUS_SERVER_HOST, BUS_SERVER_PORT);
+    return 0;
+}
+
+
+int network_send_frame(const can_frame_t *frame)
+{
+    if (!frame) {
+        printf("[NETWORK] ERROR: NULL frame\n");
+        return -1;
+    }
+
+    if (g_bus_sock < 0) {
+        printf("[NETWORK] ERROR: network not initialized\n");
+        return -1;
+    }
+
+    if (!net_send_frame(g_bus_sock, frame)) {
+        printf("[NETWORK] ERROR: net_send_frame() failed\n");
+        return -1;
+    }
+
+    return 0;
+}
 
 int net_connect_to_bus(const char *host, uint16_t port) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -58,4 +98,3 @@ bool net_recv_frame(int sockfd, can_frame_t *frame) {
     ssize_t n = recv(sockfd, frame, sizeof(*frame), 0);
     return n == (ssize_t)sizeof(*frame);
 }
-

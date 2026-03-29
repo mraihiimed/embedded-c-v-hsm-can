@@ -1,6 +1,17 @@
 #include "config.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <unistd.h>
+#include "util.h"
+
+void util_sleep_ms(int ms)
+{
+    if (ms <= 0)
+        return;
+
+    usleep(ms * 1000);   // convert ms → microseconds
+}
+
 
 void log_msg(log_level_t level, const char *fmt, ...) {
     const char *tag = "";
