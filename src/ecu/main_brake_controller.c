@@ -1,6 +1,9 @@
 #include "ecu.h"
 #include "config.h"
+#include "can.h"
+#include "network.h"
 #include <unistd.h>
+#include "main_security_checks.h"
 
 int main(void) {
     ecu_t ecu;
@@ -14,6 +17,19 @@ int main(void) {
         can_frame_t frame;
         if (!ecu_recv(&ecu, &frame)) break;
 
+	// --- SECURITY CHECK (single call) ---
+	security_status_t sec = security_check_frame(&ecu.hsm, &frame, "brake_controller");
+
+	// security_status_t sec = security_check_frame(&frame, "brake_controller");
+        if (sec != SEC_OK) {
+            ecu.fail_safe = true;
+            security_failsafe("brake_controller");
+            break;
+        }
+        // ------------------------------------
+
+
+	//Normal brake command processing
         if (frame.id == 0x200 && frame.dlc >= 1) {
             uint8_t apply = frame.data[0];
             if (apply) {

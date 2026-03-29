@@ -32,5 +32,8 @@ bool hsm_verify_frame(hsm_context_t *ctx, const can_frame_t *frame);
 // Simple RNG wrapper
 bool hsm_get_random(hsm_context_t *ctx, uint8_t *out, size_t len);
 
+// Verfication MAC
+bool hsm_verify_mac(hsm_context_t *ctx, const can_frame_t *frame);
+
 #endif
 

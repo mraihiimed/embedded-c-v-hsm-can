@@ -11,7 +11,7 @@ int main(void) {
     uint8_t speed = 10;
     while (!ecu.fail_safe) {
         can_frame_t frame = {0};
-        frame.id = 0x100; // wheel FL ID
+        frame.id = CAN_ID_WHEEL_FL; // wheel FL ID
         frame.dlc = 1;
         frame.data[0] = speed;
 
@@ -21,6 +21,8 @@ int main(void) {
         speed = (speed + 1) % 200;
         usleep(100000); // 10 Hz
     }
+
+   log_msg(LOG_ERROR, "[WHEEL_FL], FAIL-SAFE ACTIVE\n");
 
     return 0;
 }

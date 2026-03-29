@@ -6,14 +6,38 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-
+#include "bus.h"
+#include "network.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
+#include "can_types.h"
 
 #define MAX_CLIENTS 32
+
+
+
+int bus_init(void)
+{
+    printf("[BUS] Initializing bus layer\n");
+   // return network_init();
+   return 0;
+}
+int bus_send_frame(const can_frame_t *frame)
+{
+    if (!frame) {
+        printf("[BUS] ERROR: NULL frame passed to bus_send_frame()\n");
+        return -1;
+    }
+
+    // Optional: print for debugging
+    printf("[BUS] TX ID=0x%03X DLC=%u\n", frame->id, frame->dlc);
+
+    // Forward to network layer (your existing API)
+    return network_send_frame(frame);
+}
+
 
 void bus_server_run(uint16_t port_bus, uint16_t port_monitor) {
     int listen_fd = net_listen_bus(port_bus);
