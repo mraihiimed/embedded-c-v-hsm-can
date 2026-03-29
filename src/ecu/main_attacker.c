@@ -4,35 +4,38 @@
 #include "network.h"
 #include "bus.h"
 #include "util.h"
-
-//#include "attack_spoof.h"
-//#include "attack_fuzz.h"
-//#include "attack_malformed.h"
-//#include "attack_replay.h"
-
 #include "can.h"   // your CAN ID definitions
-
 #include "attacks/attack_spoof.h"
 #include "attacks/attack_fuzz.h"
 #include "attacks/attack_malformed.h"
+#include "attacks/attack_menu.h"
 
-int main(void)
+/*int main(void)
 {
     if (network_init() < 0) {
         printf("[ATTACKER] Network init failed, exiting\n");
         return 1;
     }
 
-    bus_init();   // your new bus_init() just prints and returns 0
+    bus_init();
 
-    printf("[ATTACKER] Starting attack ECU\n");
-
-    while (1) {
-        attack_spoof_send(CAN_ID_ENGINE, (uint8_t*)"AAAA", 4);
-        attack_fuzz_random(CAN_ID_BRAKE_CMD);
-        attack_send_malformed(CAN_ID_STEER_CMD);
-        util_sleep_ms(500);
+    int sock = net_connect_to_bus(CAN_IP, CAN_PORT_BUS_SERVER);
+    if (sock < 0) {
+        printf("[ATTACKER] Cannot connect to bus\n");
+        return 1;
     }
 
+    run_attack_menu(sock);
+
     return 0;
+}*/
+#include "attacks/attack_menu.h"
+
+int main(void)
+{
+    network_init();
+    bus_init();
+
+    int sock = net_connect_to_bus(CAN_IP, CAN_PORT_BUS_SERVER);
+    run_attack_menu(sock);
 }

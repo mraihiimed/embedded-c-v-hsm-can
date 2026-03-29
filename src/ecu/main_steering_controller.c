@@ -16,7 +16,7 @@ int main(void) {
         if (!ecu_recv(&ecu, &frame)) break;
 
 	// --- SECURITY CHECK (single call) ---
-        security_status_t sec = security_check_frame(&ecu.hsm, &frame, "steering_controller");
+        security_status_t sec = security_check_frame(&ecu, &frame);
         // security_status_t sec = security_check_frame(&frame, "steering_controller");
         if (sec != SEC_OK) {
             ecu.fail_safe = true;

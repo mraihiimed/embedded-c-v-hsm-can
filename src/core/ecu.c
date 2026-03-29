@@ -16,6 +16,16 @@ bool ecu_init(ecu_t *ecu, const char *name, const char *bus_host, uint16_t bus_p
         close(ecu->sockfd);
         return false;
     }
+    if (strcmp(name, "wheel_fl") == 0) ecu->ecu_id = 1;
+    else if (strcmp(name, "wheel_fr") == 0) ecu->ecu_id = 2;
+    else if (strcmp(name, "wheel_rl") == 0) ecu->ecu_id = 3;
+    else if (strcmp(name, "wheel_rr") == 0) ecu->ecu_id = 4;
+    else if (strcmp(name, "engine") == 0)   ecu->ecu_id = 5;
+    else if (strcmp(name, "steering_sensor") == 0) ecu->ecu_id = 6;
+    else if (strcmp(name, "steering_controller") == 0) ecu->ecu_id = 7;
+    else if (strcmp(name, "brake_controller") == 0) ecu->ecu_id = 8;
+    else ecu->ecu_id = 99; // unknown
+
     ecu->fail_safe = false;
     return true;
 }

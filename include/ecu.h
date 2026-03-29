@@ -8,6 +8,7 @@
 
 typedef struct {
     char          name[32];
+    uint8_t       ecu_id;
     int           sockfd;
     hsm_context_t hsm;
     ids_counters_t ids;

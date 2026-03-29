@@ -18,7 +18,7 @@ int main(void) {
         if (!ecu_recv(&ecu, &frame)) break;
 
 	// --- SECURITY CHECK (single call) ---
-	security_status_t sec = security_check_frame(&ecu.hsm, &frame, "brake_controller");
+	security_status_t sec = security_check_frame(&ecu,&frame);
 
 	// security_status_t sec = security_check_frame(&frame, "brake_controller");
         if (sec != SEC_OK) {
