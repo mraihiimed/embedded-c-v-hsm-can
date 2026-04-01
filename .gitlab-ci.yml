@@ -1,0 +1,19 @@
+stages:
+  - build
+  - test
+
+build:
+  stage: build
+  tags:
+    - pi
+  script:
+    - echo "Building project..."
+    - gcc -o main main.c
+
+test:
+  stage: test
+  tags:
+    - pi
+  script:
+    - echo "Running tests..."
+    - ./main
