@@ -2,6 +2,9 @@ stages:
   - build
   - test
 
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
 build:
   stage: build
   tags:
@@ -9,6 +12,9 @@ build:
   script:
     - echo "Building project..."
     - gcc -o main main.c
+  artifacts:
+    paths:
+      - main
 
 test:
   stage: test
