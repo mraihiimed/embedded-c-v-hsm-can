@@ -22,7 +22,6 @@ static bool id_allowed(uint32_t id)
     }
 }
 
-//security_status_t security_check_frame(const can_frame_t *frame, const char *ecu_name)
 security_status_t security_check_frame(hsm_context_t *hsm,
                                        const can_frame_t *frame,
                                        const char *ecu_name)
@@ -40,12 +39,6 @@ security_status_t security_check_frame(hsm_context_t *hsm,
         printf("[IDS] [%s] Spoofed ID 0x%03X detected\n", ecu_name, frame->id);
         return SEC_ERR_SPOOF;
     }
-
-    // 3. MAC verification
-    /*if (!hsm_verify_mac(frame)) {
-        printf("[WARN] [HSM] MAC mismatch on ECU '%s'\n", ecu_name);
-        return SEC_ERR_MAC;
-    }*/
 
     if (!hsm_verify_mac(hsm, frame)) {
     printf("[WARN] [HSM] MAC mismatch on ECU '%s'\n", ecu_name);
