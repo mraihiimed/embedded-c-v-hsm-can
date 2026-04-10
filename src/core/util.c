@@ -12,7 +12,7 @@ void util_sleep_ms(int ms)
     usleep(ms * 1000);   // convert ms → microseconds
 }
 
-
+__attribute__((weak))
 void log_msg(log_level_t level, const char *fmt, ...) {
     const char *tag = "";
     switch (level) {
