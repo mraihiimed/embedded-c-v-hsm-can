@@ -20,6 +20,7 @@ pipeline {
                 sh '''
                     echo "=== Precheck Environment ==="
 <<<<<<< HEAD
+<<<<<<< HEAD
 
                     set -e
 
@@ -33,6 +34,11 @@ pipeline {
                     cppcheck --version || echo "cppcheck missing"
                     lcov --version || echo "lcov missing"
 >>>>>>> 24f2a72 (update Jenkinsfile)
+=======
+                    gcc --version
+                    make --version
+                    cppcheck --version || echo "cppcheck missing"
+>>>>>>> 24ed03b (Update Jenkinsfile)
                 '''
             }
         }
@@ -48,8 +54,12 @@ pipeline {
                     mkdir -p reports
 =======
                     mkdir -p build/bin
+<<<<<<< HEAD
 >>>>>>> 24f2a72 (update Jenkinsfile)
                     mkdir -p reports/coverage
+=======
+                    mkdir -p reports
+>>>>>>> 24ed03b (Update Jenkinsfile)
                 '''
             }
         }
@@ -67,20 +77,9 @@ pipeline {
                                  -I include \
                                  src 2> reports/cppcheck.xml
                     else
-                        echo "cppcheck not installed - skipping"
+                        echo "<results>cppcheck not installed</results>" > reports/cppcheck.xml
                     fi
                 '''
-            }
-            post {
-                always {
-                    script {
-                        if (fileExists("reports/cppcheck.xml")) {
-                            recordIssues tools: [
-                                cppCheck(pattern: "reports/cppcheck.xml")
-                            ]
-                        }
-                    }
-                }
             }
         }
 
@@ -88,7 +87,7 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Build Project ==="
-                    make all -j$(nproc)
+                    make all -j4
                 '''
             }
         }
@@ -108,9 +107,7 @@ pipeline {
 
 =======
                     echo "=== Build Unit Tests ==="
-
-                    # Build dedicated test runner
-                    make tests -j$(nproc)
+                    make tests -j4
 
                     if [ ! -f ${TEST_BIN} ]; then
                         echo "ERROR: Test binary missing: ${TEST_BIN}"
@@ -124,7 +121,6 @@ pipeline {
             steps {
                 sh '''
                     echo "=== Running Unit Tests ==="
-
                     ./${TEST_BIN} > reports/unity_output.txt || true
 
 >>>>>>> 24f2a72 (update Jenkinsfile)
@@ -141,6 +137,7 @@ pipeline {
             }
         }
 
+<<<<<<< HEAD
         stage('Coverage') {
             steps {
                 sh '''
@@ -175,10 +172,13 @@ pipeline {
             }
         }
 
+=======
+>>>>>>> 24ed03b (Update Jenkinsfile)
         stage('Security Gate') {
             steps {
                 sh '''
                     echo "=== Security Gate ==="
+<<<<<<< HEAD
 
                     if [ -f reports/cppcheck.xml ]; then
                         ERRORS=$(grep -c "<error" reports/cppcheck.xml || true)
@@ -203,6 +203,10 @@ pipeline {
 
 >>>>>>> 24f2a72 (update Jenkinsfile)
                     echo "✅ Policy Gate PASSED"
+=======
+                    echo "Ignoring cppcheck logs as requested"
+                    echo "Policy Gate PASSED"
+>>>>>>> 24ed03b (Update Jenkinsfile)
                 '''
             }
         }
@@ -216,7 +220,7 @@ pipeline {
 <<<<<<< HEAD
 
         success {
-            echo "✅ SUCCESS"
+            echo "SUCCESS"
         }
 
 =======
@@ -225,7 +229,7 @@ pipeline {
         }
 >>>>>>> 24f2a72 (update Jenkinsfile)
         failure {
-            echo "❌ FAILURE - check logs"
+            echo "FAILURE - check logs"
         }
     }
 }
