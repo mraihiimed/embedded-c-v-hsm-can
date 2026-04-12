@@ -65,34 +65,31 @@ pipeline {
             }
         }
 
-	stage('Run Unit Tests') {
+        stage('Run Unit Tests') {
             steps {
-               sh '''
-                   echo "=== Running Unit Tests ==="
+                sh '''
+                    echo "=== Running Unit Tests ==="
 
-                   mkdir -p ${REPORTS}
-                   : > ${REPORTS}/unity_output.txt
+                    mkdir -p ${REPORTS}
+                    : > ${REPORTS}/unity_output.txt
 
-                   for t in ${TEST_DIR}/test_*; do
-                       if [ -x "$t" ]; then
-                             NAME=$(basename "$t")
-                             echo "==> Running $NAME"
-                             echo "---- $NAME ----" | tee -a ${REPORTS}/unity_output.txt
+                    for t in ${TEST_DIR}/test_*; do
+                        if [ -x "$t" ]; then
+                            NAME=$(basename "$t")
+                            echo "==> Running $NAME"
+                            echo "---- $NAME ----" | tee -a ${REPORTS}/unity_output.txt
 
-                             # Run test, capture output live + append to file
-                             "$t" 2>&1 | tee -a ${REPORTS}/unity_output.txt
+                            "$t" 2>&1 | tee -a ${REPORTS}/unity_output.txt
 
-                             echo "" >> ${REPORTS}/unity_output.txt
-                    fi
-                 done
+                            echo "" >> ${REPORTS}/unity_output.txt
+                        fi
+                    done
 
-                   python scripts/unity_to_junit.py \
-                   ${REPORTS}/unity_output.txt \
-                   ${REPORTS}/junit.xml || true
-                   '''
-                  }
+                    python3 scripts/unity_to_junit.py \
+                        ${REPORTS}/unity_output.txt \
+                        ${REPORTS}/junit.xml || true
+                '''
             }
-
             post {
                 always {
                     junit allowEmptyResults: true,
