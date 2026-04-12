@@ -79,6 +79,7 @@ pipeline {
                             echo "==> Running $NAME"
                             echo "---- $NAME ----" | tee -a ${REPORTS}/unity_output.txt
 
+                            # Run test, capture output live + append to file
                             "$t" 2>&1 | tee -a ${REPORTS}/unity_output.txt
 
                             echo "" >> ${REPORTS}/unity_output.txt
