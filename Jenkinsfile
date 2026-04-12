@@ -11,6 +11,8 @@ pipeline {
         stage('Prepare Workspace') {
             steps {
                 bat '''
+                    echo Preparing workspace...
+
                     if not exist %REPORTS% mkdir %REPORTS%
                     if not exist %REPORTS%\\coverage mkdir %REPORTS%\\coverage
                     if not exist %BUILD_DIR% mkdir %BUILD_DIR%
@@ -23,10 +25,10 @@ pipeline {
                 bat '''
                     echo Checking required tools...
 
-                    where gcc || echo gcc NOT FOUND
-                    where make || echo make NOT FOUND
+                    where gcc     || echo gcc NOT FOUND
+                    where make    || echo make NOT FOUND
                     where cppcheck || echo cppcheck NOT FOUND
-                    where python || echo python NOT FOUND
+                    where python  || echo python NOT FOUND
                 '''
             }
         }
@@ -34,17 +36,16 @@ pipeline {
         stage('Static Analysis - cppcheck') {
             steps {
                 bat '''
-                    cppcheck --enable=all ^
-                             --inconclusive ^
-                             --xml --xml-version=2 ^
-                             --force ^
-                             -I include ^
-                             src 2> %REPORTS%\\cppcheck.xml
+                    echo Running static analysis...
+
+                    make cppcheck REPORTS=%REPORTS%
                 '''
             }
             post {
                 always {
-                    recordIssues tools: [cppCheck(pattern: "${REPORTS}/cppcheck.xml")]
+                    recordIssues tools: [
+                        cppCheck(pattern: "${REPORTS}/cppcheck.xml")
+                    ]
                 }
             }
         }
@@ -52,8 +53,10 @@ pipeline {
         stage('Build All ECUs') {
             steps {
                 bat '''
+                    echo Building project...
+
                     make clean
-                    make -j4
+                    make all -j4
                 '''
             }
         }
@@ -61,6 +64,8 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 bat '''
+                    echo Running unit tests...
+
                     gcc -Wall -Wextra -fprofile-arcs -ftest-coverage ^
                         -I include ^
                         -o %BUILD_DIR%\\test_core ^
@@ -77,16 +82,16 @@ pipeline {
             }
             post {
                 always {
-                    junit allowEmptyResults: true, testResults: "${REPORTS}/junit.xml"
+                    junit allowEmptyResults: true,
+                          testResults: "${REPORTS}/junit.xml"
                 }
             }
         }
 
-        // ⚠️ Coverage is optional on Windows
         stage('Coverage (Optional)') {
             steps {
                 bat '''
-                    echo Running coverage (may fail on Windows)...
+                    echo Running coverage analysis (optional)...
 
                     lcov --capture --directory . --output-file %REPORTS%\\coverage.info || echo lcov failed
                     genhtml %REPORTS%\\coverage.info --output-directory %REPORTS%\\coverage || echo genhtml failed
@@ -109,10 +114,20 @@ pipeline {
         stage('Policy Gate') {
             steps {
                 script {
-                    def issues = scanForIssues tool: cppCheck(pattern: "${REPORTS}/cppcheck.xml")
+                    echo "Running quality gate..."
+
+                    def issues = scanForIssues(
+                        tool: cppCheck(pattern: "${REPORTS}/cppcheck.xml")
+                    )
+
                     if (issues.totalErrors > 0) {
-                        error "Policy Gate failed: cppcheck found ${issues.totalErrors} errors"
+                        error """
+                        ❌ Policy Gate failed:
+                        cppcheck found ${issues.totalErrors} errors
+                        """
                     }
+
+                    echo "✅ Policy Gate passed"
                 }
             }
         }
@@ -121,6 +136,7 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+            echo "Pipeline finished. Reports archived."
         }
     }
 }
