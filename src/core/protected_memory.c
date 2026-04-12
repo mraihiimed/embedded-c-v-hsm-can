@@ -24,8 +24,23 @@ static bool verify_signature_dummy(const uint8_t *sig, uint32_t version) {
 // ---------------------------------------------------------------------------
 // API IMPLEMENTATION
 // ---------------------------------------------------------------------------
-
 bool pm_init(protected_memory_t *pm,
+             const uint8_t *firmware_hash,
+             const uint8_t *signature,
+             uint32_t version)
+{
+    memset(pm, 0, sizeof(*pm));
+
+    memcpy(pm->boot.firmware_hash, firmware_hash, PM_HASH_SIZE);
+    memcpy(pm->boot.signature, signature, PM_SIGNATURE_SIZE);
+    pm->boot.version = version;
+
+    // DO NOT reset pm->region.data here
+    // DO NOT reset pm->region.size here
+
+    return true;
+}
+/*bool pm_init(protected_memory_t *pm,
              const uint8_t *firmware_hash,
              const uint8_t *signature,
              uint32_t version)
@@ -42,7 +57,7 @@ bool pm_init(protected_memory_t *pm,
     pm->tamper_detected = false;
 
     return true;
-}
+}*/
 
 bool pm_secure_boot(protected_memory_t *pm) {
     if (!pm) return false;
