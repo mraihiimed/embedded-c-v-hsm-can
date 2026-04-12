@@ -11,7 +11,7 @@ pipeline {
         stage('Prepare Workspace') {
             steps {
                 bat '''
-                    echo Preparing workspace...
+                    echo === Preparing workspace ===
 
                     if not exist %REPORTS% mkdir %REPORTS%
                     if not exist %REPORTS%\\coverage mkdir %REPORTS%\\coverage
@@ -23,12 +23,12 @@ pipeline {
         stage('Check Tools') {
             steps {
                 bat '''
-                    echo Checking required tools...
+                    echo === Checking tools ===
 
-                    where gcc     || echo gcc NOT FOUND
-                    where make    || echo make NOT FOUND
-                    where cppcheck || echo cppcheck NOT FOUND
-                    where python  || echo python NOT FOUND
+                    where gcc || echo WARNING: gcc NOT FOUND
+                    where make || echo WARNING: make NOT FOUND
+                    where cppcheck || echo WARNING: cppcheck NOT FOUND
+                    where python || echo WARNING: python NOT FOUND
                 '''
             }
         }
@@ -36,16 +36,33 @@ pipeline {
         stage('Static Analysis - cppcheck') {
             steps {
                 bat '''
-                    echo Running static analysis...
+                    echo === Static Analysis (cppcheck) ===
 
-                    make cppcheck REPORTS=%REPORTS%
+                    where cppcheck >nul 2>nul
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo cppcheck not installed - skipping analysis
+                        exit /b 0
+                    )
+
+                    cppcheck --enable=all ^
+                             --inconclusive ^
+                             --xml --xml-version=2 ^
+                             --force ^
+                             -I include ^
+                             src 2> %REPORTS%\\cppcheck.xml
                 '''
             }
             post {
                 always {
-                    recordIssues tools: [
-                        cppCheck(pattern: "${REPORTS}/cppcheck.xml")
-                    ]
+                    script {
+                        if (fileExists("${REPORTS}/cppcheck.xml")) {
+                            recordIssues tools: [
+                                cppCheck(pattern: "${REPORTS}/cppcheck.xml")
+                            ]
+                        } else {
+                            echo "cppcheck report not found - skipping quality report"
+                        }
+                    }
                 }
             }
         }
@@ -53,7 +70,13 @@ pipeline {
         stage('Build All ECUs') {
             steps {
                 bat '''
-                    echo Building project...
+                    echo === Build ===
+
+                    where make >nul 2>nul
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ERROR: make not found
+                        exit /b 1
+                    )
 
                     make clean
                     make all -j4
@@ -64,7 +87,7 @@ pipeline {
         stage('Unit Tests') {
             steps {
                 bat '''
-                    echo Running unit tests...
+                    echo === Unit Tests ===
 
                     gcc -Wall -Wextra -fprofile-arcs -ftest-coverage ^
                         -I include ^
@@ -73,7 +96,12 @@ pipeline {
                         src\\core\\*.c ^
                         unity\\unity.c
 
-                    %BUILD_DIR%\\test_core.exe > %REPORTS%\\unity_output.txt
+                    if exist %BUILD_DIR%\\test_core.exe (
+                        %BUILD_DIR%\\test_core.exe > %REPORTS%\\unity_output.txt
+                    ) else (
+                        echo ERROR: test binary not built
+                        exit /b 1
+                    )
 
                     python scripts\\unity_to_junit.py ^
                         %REPORTS%\\unity_output.txt ^
@@ -91,7 +119,13 @@ pipeline {
         stage('Coverage (Optional)') {
             steps {
                 bat '''
-                    echo Running coverage analysis (optional)...
+                    echo === Coverage ===
+
+                    where lcov >nul 2>nul
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo WARNING: lcov not installed - skipping coverage
+                        exit /b 0
+                    )
 
                     lcov --capture --directory . --output-file %REPORTS%\\coverage.info || echo lcov failed
                     genhtml %REPORTS%\\coverage.info --output-directory %REPORTS%\\coverage || echo genhtml failed
@@ -99,14 +133,20 @@ pipeline {
             }
             post {
                 always {
-                    publishHTML(target: [
-                        reportDir: "${REPORTS}/coverage",
-                        reportFiles: "index.html",
-                        reportName: "Coverage Report",
-                        keepAll: true,
-                        alwaysLinkToLastBuild: true,
-                        allowMissing: true
-                    ])
+                    script {
+                        if (fileExists("${REPORTS}/coverage/index.html")) {
+                            publishHTML(target: [
+                                reportDir: "${REPORTS}/coverage",
+                                reportFiles: "index.html",
+                                reportName: "Coverage Report",
+                                keepAll: true,
+                                alwaysLinkToLastBuild: true,
+                                allowMissing: true
+                            ])
+                        } else {
+                            echo "Coverage report not generated"
+                        }
+                    }
                 }
             }
         }
@@ -114,20 +154,24 @@ pipeline {
         stage('Policy Gate') {
             steps {
                 script {
-                    echo "Running quality gate..."
+                    echo "=== Policy Gate ==="
 
-                    def issues = scanForIssues(
-                        tool: cppCheck(pattern: "${REPORTS}/cppcheck.xml")
-                    )
+                    if (!fileExists("${REPORTS}/cppcheck.xml")) {
+                        echo "No cppcheck report -> skipping gate"
+                    } else {
+                        def issues = scanForIssues(
+                            tool: cppCheck(pattern: "${REPORTS}/cppcheck.xml")
+                        )
 
-                    if (issues.totalErrors > 0) {
-                        error """
-                        ❌ Policy Gate failed:
-                        cppcheck found ${issues.totalErrors} errors
-                        """
+                        if (issues.totalErrors > 0) {
+                            error """
+❌ Policy Gate failed
+cppcheck errors: ${issues.totalErrors}
+"""
+                        }
+
+                        echo "✅ Policy Gate passed"
                     }
-
-                    echo "✅ Policy Gate passed"
                 }
             }
         }
@@ -136,7 +180,15 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
-            echo "Pipeline finished. Reports archived."
+            echo "Pipeline finished - artifacts archived"
+        }
+
+        failure {
+            echo "❌ Pipeline failed - check logs above"
+        }
+
+        success {
+            echo "✅ Pipeline succeeded"
         }
     }
 }
