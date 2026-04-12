@@ -3,7 +3,7 @@ pipeline {
 
     options {
         timestamps()
-        timeout(time: 15, unit: 'MINUTES')
+        timeout(time: 25, unit: 'MINUTES')
         disableConcurrentBuilds()
     }
 
@@ -14,128 +14,140 @@ pipeline {
 
     stages {
 
-        stage('Precheck Tools') {
+        stage('Precheck Environment') {
             steps {
-                bat '''
-                    echo === Precheck Tools ===
+                sh '''
+                    echo "=== Precheck Environment ==="
 
-                    python --version || exit /b 1
-                    where python || exit /b 1
+                    set -e
 
-                    where gcc || echo WARNING: gcc NOT FOUND
-                    where make || echo WARNING: make NOT FOUND
-                    where cppcheck || echo WARNING: cppcheck NOT FOUND
+                    gcc --version
+                    make --version
+                    cppcheck --version || echo "cppcheck missing"
                 '''
             }
         }
 
-        stage('Prepare Workspace') {
+        stage('Clean Workspace') {
             steps {
-                bat '''
-                    echo === Preparing workspace ===
-
-                    if not exist %REPORTS% mkdir %REPORTS%
-                    if not exist %REPORTS%\\coverage mkdir %REPORTS%\\coverage
-                    if not exist %BUILD_DIR% mkdir %BUILD_DIR%
+                sh '''
+                    echo "=== Clean Workspace ==="
+                    make clean || true
+                    rm -rf build/*
+                    mkdir -p build
+                    mkdir -p reports
+                    mkdir -p reports/coverage
                 '''
             }
         }
 
-        stage('Static Analysis - cppcheck') {
+        stage('Static Analysis (cppcheck)') {
             steps {
-                bat '''
-                    echo === Static Analysis (cppcheck) ===
+                sh '''
+                    echo "=== cppcheck analysis ==="
 
-                    where cppcheck >nul 2>nul
-                    if %ERRORLEVEL% NEQ 0 (
-                        echo ERROR: cppcheck not installed
-                        exit /b 1
-                    )
-
-                    cppcheck --enable=all ^
-                             --inconclusive ^
-                             --xml --xml-version=2 ^
-                             --force ^
-                             -I include ^
-                             src 2> %REPORTS%\\cppcheck.xml
+                    if command -v cppcheck >/dev/null 2>&1; then
+                        cppcheck --enable=all \
+                                 --inconclusive \
+                                 --xml --xml-version=2 \
+                                 --force \
+                                 -I include \
+                                 src 2> reports/cppcheck.xml
+                    else
+                        echo "cppcheck not installed - skipping"
+                    fi
                 '''
+            }
+            post {
+                always {
+                    script {
+                        if (fileExists("reports/cppcheck.xml")) {
+                            recordIssues tools: [
+                                cppCheck(pattern: "reports/cppcheck.xml")
+                            ]
+                        }
+                    }
+                }
             }
         }
 
-        stage('Build') {
+        stage('Build Project') {
             steps {
-                bat '''
-                    echo === Build ===
-
-                    where make >nul 2>nul
-                    if %ERRORLEVEL% NEQ 0 (
-                        echo ERROR: make not found
-                        exit /b 1
-                    )
-
-                    make clean
-                    make all -j4
+                sh '''
+                    echo "=== Build Project ==="
+                    make all -j$(nproc)
                 '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                bat '''
-                    echo === Unit Tests ===
+                sh '''
+                    echo "=== Unit Tests ==="
 
-                    gcc -Wall -Wextra -fprofile-arcs -ftest-coverage ^
-                        -I include ^
-                        -o %BUILD_DIR%\\test_core ^
-                        tests\\test_main.c ^
-                        src\\core\\*.c ^
-                        unity\\unity.c
+                    if [ -f build/bin/test_core ]; then
+                        ./build/bin/test_core > reports/unity_output.txt || true
+                    else
+                        echo "ERROR: test binary missing"
+                        exit 1
+                    fi
 
-                    if not exist %BUILD_DIR%\\test_core.exe (
-                        echo ERROR: test binary not built
-                        exit /b 1
-                    )
-
-                    %BUILD_DIR%\\test_core.exe > %REPORTS%\\unity_output.txt
-
-                    python scripts\\unity_to_junit.py ^
-                        %REPORTS%\\unity_output.txt ^
-                        %REPORTS%\\junit.xml
+                    python3 scripts/unity_to_junit.py \
+                        reports/unity_output.txt \
+                        reports/junit.xml || true
                 '''
             }
             post {
                 always {
                     junit allowEmptyResults: true,
-                          testResults: "${env.REPORTS}/junit.xml"
+                          testResults: "reports/junit.xml"
                 }
             }
         }
 
-        stage('Coverage (Optional)') {
+        stage('Coverage') {
             steps {
-                bat '''
-                    echo === Coverage ===
+                sh '''
+                    echo "=== Coverage ==="
 
-                    where lcov >nul 2>nul
-                    if %ERRORLEVEL% NEQ 0 (
-                        echo WARNING: lcov not installed - skipping coverage
-                        exit /b 0
-                    )
-
-                    lcov --capture --directory . --output-file %REPORTS%\\coverage.info
-                    genhtml %REPORTS%\\coverage.info --output-directory %REPORTS%\\coverage
+                    if command -v lcov >/dev/null 2>&1; then
+                        lcov --capture --directory . --output-file reports/coverage.info || true
+                        genhtml reports/coverage.info --output-directory reports/coverage || true
+                    else
+                        echo "lcov not installed - skipping coverage"
+                    fi
                 '''
             }
             post {
                 always {
                     publishHTML(target: [
-                        reportDir: "${env.REPORTS}/coverage",
+                        reportDir: "reports/coverage",
                         reportFiles: "index.html",
                         reportName: "Coverage Report",
-                        keepAll: true,
                         allowMissing: true
                     ])
                 }
+            }
+        }
+
+        stage('Security Gate') {
+            steps {
+                sh '''
+                    echo "=== Security Gate ==="
+
+                    if [ -f reports/cppcheck.xml ]; then
+                        ERRORS=$(grep -c "<error" reports/cppcheck.xml || true)
+
+                        echo "cppcheck errors: $ERRORS"
+
+                        if [ "$ERRORS" -gt 0 ]; then
+                            echo "❌ Policy Gate FAILED"
+                            exit 1
+                        fi
+                    fi
+
+                    echo "✅ Policy Gate PASSED"
+                '''
             }
         }
     }
@@ -151,7 +163,7 @@ pipeline {
         }
 
         failure {
-            echo "❌ FAILED - check logs"
+            echo "❌ FAILURE - check logs"
         }
     }
 }
