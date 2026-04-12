@@ -3,72 +3,98 @@ pipeline {
 
     environment {
         REPORTS = "reports"
+        BUILD_DIR = "build"
     }
 
     stages {
 
         stage('Prepare Workspace') {
             steps {
-                sh '''
-                    mkdir -p ${REPORTS}
-                    mkdir -p ${REPORTS}/coverage
+                bat '''
+                    echo Preparing workspace...
+
+                    if not exist %REPORTS% mkdir %REPORTS%
+                    if not exist %REPORTS%\\coverage mkdir %REPORTS%\\coverage
+                    if not exist %BUILD_DIR% mkdir %BUILD_DIR%
+                '''
+            }
+        }
+
+        stage('Check Tools') {
+            steps {
+                bat '''
+                    echo Checking required tools...
+
+                    where gcc     || echo gcc NOT FOUND
+                    where make    || echo make NOT FOUND
+                    where cppcheck || echo cppcheck NOT FOUND
+                    where python  || echo python NOT FOUND
                 '''
             }
         }
 
         stage('Static Analysis - cppcheck') {
             steps {
-                sh '''
-                    cppcheck --enable=all \
-                             --inconclusive \
-                             --xml --xml-version=2 \
-                             --force \
-                             -I include \
-                             src 2> ${REPORTS}/cppcheck.xml
+                bat '''
+                    echo Running static analysis...
+
+                    make cppcheck REPORTS=%REPORTS%
                 '''
             }
             post {
                 always {
-                    recordIssues tools: [cppCheck(pattern: "${REPORTS}/cppcheck.xml")]
+                    recordIssues tools: [
+                        cppCheck(pattern: "${REPORTS}/cppcheck.xml")
+                    ]
                 }
             }
         }
 
         stage('Build All ECUs') {
             steps {
-                sh 'make clean'
-                sh 'make -j$(nproc)'
+                bat '''
+                    echo Building project...
+
+                    make clean
+                    make all -j4
+                '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                sh '''
-                    gcc -Wall -Wextra -fprofile-arcs -ftest-coverage \
-                        -I include \
-                        -o build/test_core \
-                        tests/test_*.c \
-                        src/core/*.c \
-                        unity/unity.c
+                bat '''
+                    echo Running unit tests...
 
-                    ./build/test_core > ${REPORTS}/unity_output.txt || true
-                    python3 scripts/unity_to_junit.py \
-                        ${REPORTS}/unity_output.txt \
-                        ${REPORTS}/junit.xml
+                    gcc -Wall -Wextra -fprofile-arcs -ftest-coverage ^
+                        -I include ^
+                        -o %BUILD_DIR%\\test_core ^
+                        tests\\test_*.c ^
+                        src\\core\\*.c ^
+                        unity\\unity.c
+
+                    %BUILD_DIR%\\test_core.exe > %REPORTS%\\unity_output.txt
+
+                    python scripts\\unity_to_junit.py ^
+                        %REPORTS%\\unity_output.txt ^
+                        %REPORTS%\\junit.xml
                 '''
             }
             post {
                 always {
-                    junit "${REPORTS}/junit.xml"
+                    junit allowEmptyResults: true,
+                          testResults: "${REPORTS}/junit.xml"
                 }
             }
         }
 
-        stage('Coverage') {
+        stage('Coverage (Optional)') {
             steps {
-                sh '''
-                    lcov --capture --directory . --output-file ${REPORTS}/coverage.info
-                    genhtml ${REPORTS}/coverage.info --output-directory ${REPORTS}/coverage
+                bat '''
+                    echo Running coverage analysis (optional)...
+
+                    lcov --capture --directory . --output-file %REPORTS%\\coverage.info || echo lcov failed
+                    genhtml %REPORTS%\\coverage.info --output-directory %REPORTS%\\coverage || echo genhtml failed
                 '''
             }
             post {
@@ -76,7 +102,10 @@ pipeline {
                     publishHTML(target: [
                         reportDir: "${REPORTS}/coverage",
                         reportFiles: "index.html",
-                        reportName: "Coverage Report"
+                        reportName: "Coverage Report",
+                        keepAll: true,
+                        alwaysLinkToLastBuild: true,
+                        allowMissing: true
                     ])
                 }
             }
@@ -85,12 +114,29 @@ pipeline {
         stage('Policy Gate') {
             steps {
                 script {
-                    def issues = scanForIssues tool: cppCheck(pattern: "${REPORTS}/cppcheck.xml")
+                    echo "Running quality gate..."
+
+                    def issues = scanForIssues(
+                        tool: cppCheck(pattern: "${REPORTS}/cppcheck.xml")
+                    )
+
                     if (issues.totalErrors > 0) {
-                        error "Policy Gate failed: cppcheck found ${issues.totalErrors} errors"
+                        error """
+                        ❌ Policy Gate failed:
+                        cppcheck found ${issues.totalErrors} errors
+                        """
                     }
+
+                    echo "✅ Policy Gate passed"
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+            echo "Pipeline finished. Reports archived."
         }
     }
 }

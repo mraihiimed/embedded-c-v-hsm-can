@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<platform>
+    <define name="WIN32"/>
+    <define name="__GNUC__"/>
+</platform>
