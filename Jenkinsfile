@@ -1,31 +1,45 @@
 pipeline {
-    agent { label 'ubuntu' }   // 🔥 THIS replaces "agent any"
+    agent any
 
     environment {
         REPORTS = "reports"
+        BUILD_DIR = "build"
     }
 
     stages {
 
         stage('Prepare Workspace') {
             steps {
-                sh '''
-                    mkdir -p ${REPORTS}
-                    mkdir -p ${REPORTS}/coverage
-                    mkdir -p build
+                bat '''
+                    if not exist %REPORTS% mkdir %REPORTS%
+                    if not exist %REPORTS%\\coverage mkdir %REPORTS%\\coverage
+                    if not exist %BUILD_DIR% mkdir %BUILD_DIR%
+                '''
+            }
+        }
+
+        stage('Check Tools') {
+            steps {
+                bat '''
+                    echo Checking required tools...
+
+                    where gcc || echo gcc NOT FOUND
+                    where make || echo make NOT FOUND
+                    where cppcheck || echo cppcheck NOT FOUND
+                    where python || echo python NOT FOUND
                 '''
             }
         }
 
         stage('Static Analysis - cppcheck') {
             steps {
-                sh '''
-                    cppcheck --enable=all \
-                             --inconclusive \
-                             --xml --xml-version=2 \
-                             --force \
-                             -I include \
-                             src 2> ${REPORTS}/cppcheck.xml
+                bat '''
+                    cppcheck --enable=all ^
+                             --inconclusive ^
+                             --xml --xml-version=2 ^
+                             --force ^
+                             -I include ^
+                             src 2> %REPORTS%\\cppcheck.xml
                 '''
             }
             post {
@@ -37,42 +51,45 @@ pipeline {
 
         stage('Build All ECUs') {
             steps {
-                sh '''
+                bat '''
                     make clean
-                    make -j$(nproc)
+                    make -j4
                 '''
             }
         }
 
         stage('Unit Tests') {
             steps {
-                sh '''
-                    gcc -Wall -Wextra -fprofile-arcs -ftest-coverage \
-                        -I include \
-                        -o build/test_core \
-                        tests/test_*.c \
-                        src/core/*.c \
-                        unity/unity.c
+                bat '''
+                    gcc -Wall -Wextra -fprofile-arcs -ftest-coverage ^
+                        -I include ^
+                        -o %BUILD_DIR%\\test_core ^
+                        tests\\test_*.c ^
+                        src\\core\\*.c ^
+                        unity\\unity.c
 
-                    ./build/test_core > ${REPORTS}/unity_output.txt || true
+                    %BUILD_DIR%\\test_core.exe > %REPORTS%\\unity_output.txt
 
-                    python3 scripts/unity_to_junit.py \
-                        ${REPORTS}/unity_output.txt \
-                        ${REPORTS}/junit.xml
+                    python scripts\\unity_to_junit.py ^
+                        %REPORTS%\\unity_output.txt ^
+                        %REPORTS%\\junit.xml
                 '''
             }
             post {
                 always {
-                    junit "${REPORTS}/junit.xml"
+                    junit allowEmptyResults: true, testResults: "${REPORTS}/junit.xml"
                 }
             }
         }
 
-        stage('Coverage') {
+        // ⚠️ Coverage is optional on Windows
+        stage('Coverage (Optional)') {
             steps {
-                sh '''
-                    lcov --capture --directory . --output-file ${REPORTS}/coverage.info
-                    genhtml ${REPORTS}/coverage.info --output-directory ${REPORTS}/coverage
+                bat '''
+                    echo Running coverage (may fail on Windows)...
+
+                    lcov --capture --directory . --output-file %REPORTS%\\coverage.info || echo lcov failed
+                    genhtml %REPORTS%\\coverage.info --output-directory %REPORTS%\\coverage || echo genhtml failed
                 '''
             }
             post {
@@ -98,6 +115,12 @@ pipeline {
                     }
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
         }
     }
 }
