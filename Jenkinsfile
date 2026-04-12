@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'ubuntu' }   // 🔥 THIS replaces "agent any"
 
     environment {
         REPORTS = "reports"
@@ -12,6 +12,7 @@ pipeline {
                 sh '''
                     mkdir -p ${REPORTS}
                     mkdir -p ${REPORTS}/coverage
+                    mkdir -p build
                 '''
             }
         }
@@ -36,8 +37,10 @@ pipeline {
 
         stage('Build All ECUs') {
             steps {
-                sh 'make clean'
-                sh 'make -j$(nproc)'
+                sh '''
+                    make clean
+                    make -j$(nproc)
+                '''
             }
         }
 
@@ -52,6 +55,7 @@ pipeline {
                         unity/unity.c
 
                     ./build/test_core > ${REPORTS}/unity_output.txt || true
+
                     python3 scripts/unity_to_junit.py \
                         ${REPORTS}/unity_output.txt \
                         ${REPORTS}/junit.xml
@@ -76,7 +80,10 @@ pipeline {
                     publishHTML(target: [
                         reportDir: "${REPORTS}/coverage",
                         reportFiles: "index.html",
-                        reportName: "Coverage Report"
+                        reportName: "Coverage Report",
+                        keepAll: true,
+                        alwaysLinkToLastBuild: true,
+                        allowMissing: true
                     ])
                 }
             }
