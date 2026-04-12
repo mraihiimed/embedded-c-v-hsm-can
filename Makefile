@@ -77,6 +77,20 @@ clean:
 
 .PHONY: all clean test
 
+
+# ---------------------------------------------------------------------------
+# Static Test Configuration
+# ---------------------------------------------------------------------------
+CPPCHECK = cppcheck
+CPPCHECK_FLAGS = --enable=all --inconclusive --force --xml --xml-version=2 \
+                 -I include \
+                 --suppressions-list=tools/cppcheck/suppressions.txt \
+                 --platform=tools/cppcheck/platform.rules
+
+cppcheck:
+	mkdir -p reports
+	$(CPPCHECK) $(CPPCHECK_FLAGS) src 2> reports/cppcheck.xml
+
 # ---------------------------------------------------------------------------
 # Unit Test Configuration
 # ---------------------------------------------------------------------------
